@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BEV 感知仓库深度研究报告 · OpenDriveLab/Birds-eye-view-Perception</title>
+<meta name="description" content="对 OpenDriveLab/Birds-eye-view-Perception 仓库的深度研究报告：综述层、BEV Toolbox 工具箱、Waymo Playground 配方与 BEV 算法家族（VCD / GAPretrain / FocalDistiller）的源码级解析。">
+<style>
+:root{
+  --bg:#0f1115; --bg-soft:#161922; --panel:#1b1f2a; --panel-2:#212633;
+  --line:#2b3242; --line-soft:#232937;
+  --fg:#e6e9f0; --fg-dim:#a3abbd; --fg-mute:#6f7a90;
+  --accent:#6ea8fe; --accent-2:#7ee2c7; --warn:#f0b429; --danger:#f4737d; --ok:#63d18b;
+  --code-bg:#12151d; --mono:"JetBrains Mono","Fira Code",Consolas,"SF Mono",Menlo,monospace;
+  --sans:"Inter","Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  --maxw:1180px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth; scroll-padding-top:24px}
+body{
+  margin:0; background:var(--bg); color:var(--fg); font-family:var(--sans);
+  font-size:16px; line-height:1.78; -webkit-font-smoothing:antialiased;
+}
+a{color:var(--accent); text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:var(--mono); font-size:.88em; background:#232838; padding:.12em .42em; border-radius:4px; color:#c9d6f5}
+pre{background:var(--code-bg); border:1px solid var(--line-soft); border-radius:10px; padding:16px 18px; overflow-x:auto; margin:18px 0}
+pre code{background:none; padding:0; color:#cdd6f4; font-size:13.5px; line-height:1.72}
+
+/* ---------- layout ---------- */
+.wrap{display:flex; max-width:var(--maxw); margin:0 auto; gap:0}
+.side{
+  width:290px; flex:0 0 290px; position:sticky; top:0; align-self:flex-start;
+  height:100vh; overflow-y:auto; padding:30px 18px 60px 26px; border-right:1px solid var(--line-soft);
+}
+.side::-webkit-scrollbar{width:7px}.side::-webkit-scrollbar-thumb{background:#2b3242;border-radius:4px}
+.side .brand{font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--fg-mute); margin-bottom:14px}
+.side h4{font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--fg-mute); margin:22px 0 8px; font-weight:600}
+.side a{display:block; padding:5px 10px; border-radius:7px; color:var(--fg-dim); font-size:13.5px; line-height:1.5; border-left:2px solid transparent}
+.side a:hover{background:var(--panel); color:var(--fg); text-decoration:none}
+.side a.sub{padding-left:22px; font-size:13px; color:var(--fg-mute)}
+.side a.active{background:var(--panel); color:var(--accent); border-left-color:var(--accent); font-weight:600}
+main{flex:1 1 auto; min-width:0; padding:0 46px 120px}
+
+/* ---------- hero ---------- */
+.hero{padding:56px 0 34px; border-bottom:1px solid var(--line-soft); margin-bottom:38px}
+.eyebrow{font-size:12.5px; letter-spacing:.18em; text-transform:uppercase; color:var(--accent-2); font-weight:600; margin-bottom:14px}
+.hero h1{font-size:2.35rem; line-height:1.25; margin:0 0 16px; letter-spacing:-.02em; font-weight:700}
+.hero .lede{font-size:17.5px; color:var(--fg-dim); max-width:820px; margin:0 0 24px}
+.badges{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:26px}
+.badge{
+  display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600;
+  padding:5px 11px; border-radius:999px; border:1px solid var(--line);
+  background:var(--panel); color:var(--fg-dim); font-family:var(--mono);
+}
+.badge.star{border-color:#4a3a1e; background:#241d10; color:var(--warn)}
+.badge.lic{border-color:#20492f; background:#10241a; color:var(--ok)}
+.badge.ver{border-color:#24384f; background:#111d2b; color:var(--accent)}
+.meta-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; margin-top:26px}
+.meta-item{background:var(--panel); border:1px solid var(--line-soft); border-radius:10px; padding:14px 16px}
+.meta-item .k{font-size:11.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--fg-mute); margin-bottom:4px}
+.meta-item .v{font-size:16px; font-weight:600; font-family:var(--mono); color:var(--fg)}
+
+/* ---------- sections ---------- */
+section{margin-bottom:64px; scroll-margin-top:20px}
+h2{
+  font-size:1.62rem; margin:0 0 20px; padding-bottom:12px; border-bottom:1px solid var(--line-soft);
+  letter-spacing:-.01em; font-weight:650; display:flex; align-items:baseline; gap:12px;
+}
+h2 .num{font-family:var(--mono); font-size:.82em; color:var(--accent); font-weight:500; opacity:.85}
+h3{font-size:1.18rem; margin:34px 0 12px; font-weight:650; color:#eef1f8}
+h4{font-size:1.02rem; margin:24px 0 8px; font-weight:650; color:var(--fg-dim)}
+p{margin:0 0 15px}
+ul,ol{margin:0 0 15px; padding-left:22px}
+li{margin-bottom:7px}
+strong{color:#f0f3fa; font-weight:650}
+hr{border:0; border-top:1px solid var(--line-soft); margin:36px 0}
+
+/* ---------- tables ---------- */
+.tbl-wrap{overflow-x:auto; margin:20px 0; border:1px solid var(--line-soft); border-radius:10px}
+table{width:100%; border-collapse:collapse; font-size:14.5px; min-width:520px}
+thead th{
+  background:var(--panel-2); color:var(--fg); text-align:left; padding:11px 14px;
+  font-weight:650; font-size:13.5px; border-bottom:1px solid var(--line); white-space:nowrap;
+}
+tbody td{padding:10px 14px; border-bottom:1px solid var(--line-soft); vertical-align:top}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:#191d28}
+td.num,th.num{text-align:right; font-family:var(--mono); font-size:13.5px; white-space:nowrap}
+.up{color:var(--ok); font-weight:650}.down{color:var(--danger); font-weight:650}
+.dim{color:var(--fg-mute)}
+
+/* ---------- callouts ---------- */
+.callout{border-radius:10px; padding:15px 18px; margin:20px 0; border:1px solid; font-size:15px}
+.callout .tag{display:block; font-size:11.5px; letter-spacing:.12em; text-transform:uppercase; font-weight:700; margin-bottom:6px}
+.callout p:last-child{margin-bottom:0}
+.c-info{background:#0f1a26; border-color:#1f3a52} .c-info .tag{color:var(--accent)}
+.c-warn{background:#221a0d; border-color:#4a3a1e} .c-warn .tag{color:var(--warn)}
+.c-ok{background:#0f1f16; border-color:#20492f} .c-ok .tag{color:var(--ok)}
+.c-danger{background:#221214; border-color:#4d2328} .c-danger .tag{color:var(--danger)}
+.c-key{background:#1a1626; border-color:#3a2f55} .c-key .tag{color:#b795ff}
+
+/* ---------- figures ---------- */
+figure{margin:26px 0; background:var(--panel); border:1px solid var(--line-soft); border-radius:12px; padding:16px; overflow:hidden}
+figure img{width:100%; height:auto; display:block; border-radius:6px; background:#0b0d12}
+figcaption{font-size:13.5px; color:var(--fg-mute); margin-top:12px; line-height:1.65}
+figcaption b{color:var(--fg-dim)}
+
+/* ---------- code header ---------- */
+.code-lbl{font-family:var(--mono); font-size:12px; color:var(--fg-mute); margin:-6px 0 8px 2px}
+
+/* ---------- misc ---------- */
+.grid2{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; margin:20px 0}
+.card{background:var(--panel); border:1px solid var(--line-soft); border-radius:11px; padding:18px 20px}
+.card h4{margin-top:0; color:var(--fg)}
+.card p:last-child,.card ul:last-child{margin-bottom:0}
+.kv{font-family:var(--mono); font-size:13px}
+.path{font-family:var(--mono); font-size:13.5px; color:var(--accent-2); background:#12171e; border:1px solid var(--line-soft); border-radius:6px; padding:1px 6px; display:inline-block; margin:1px 0}
+.tree{font-family:var(--mono); font-size:13px; line-height:1.62; background:var(--code-bg); border:1px solid var(--line-soft); border-radius:10px; padding:18px 20px; overflow-x:auto; color:#c3cde3; margin:20px 0}
+.tree .c{color:#6b7590}.tree .f{color:#8ab4f8}.tree .d{color:#7ee2c7}.tree .hl{color:var(--warn); font-weight:600}
+blockquote{margin:20px 0; padding:4px 0 4px 18px; border-left:3px solid var(--accent); color:var(--fg-dim); font-style:italic}
+blockquote p{margin-bottom:8px}
+footer{border-top:1px solid var(--line-soft); padding-top:26px; color:var(--fg-mute); font-size:14px}
+@media (max-width:960px){
+  .wrap{flex-direction:column}
+  .side{position:static; width:100%; flex:none; height:auto; border-right:none; border-bottom:1px solid var(--line-soft); padding:24px}
+  main{padding:0 22px 80px}
+  .hero h1{font-size:1.75rem}
+}
+@media print{
+  body{background:#fff; color:#111}
+  .side{display:none}
+  main{padding:0}
+  .hero h1{color:#111}
+  pre{background:#f4f4f6}
+  pre code{color:#222}
+  table{font-size:11px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ================= SIDEBAR ================= -->
+<aside class="side">
+  <div class="brand">目录 / Contents</div>
+  <h4>报告主体</h4>
+  <a href="#s1">1 · 一句话结论</a>
+  <a href="#s2">2 · 仓库档案</a>
+  <a href="#s3">3 · BEV 感知的四个痛点</a>
+  <a href="#s4">4 · 仓库解剖</a>
+  <h4>四大模块</h4>
+  <a href="#s5">5 · 文献综述层 docs/</a>
+  <a href="#s6">6 · BEV Toolbox</a>
+  <a href="#s7">7 · Waymo Playground</a>
+  <a href="#s8">8 · BEV 算法家族</a>
+  <h4>实践与研究</h4>
+  <a href="#s9">9 · 复现路线图</a>
+  <a href="#s10">10 · 学习研究路径</a>
+  <a href="#s11">11 · 优点局限与风险</a>
+  <h4>附录</h4>
+  <a href="#sa">附录 A · 源码索引</a>
+  <a href="#sb">附录 B · 参考文献</a>
+</aside>
+
+<main>
+
+<!-- ================= HERO ================= -->
+<div class="hero">
+  <div class="eyebrow">Repository Research Report · 仓库深度研究报告</div>
+  <h1>Birds-eye-view-Perception<br>BEV 感知仓库深度研究报告</h1>
+  <p class="lede">
+    对 <a href="https://github.com/OpenDriveLab/Birds-eye-view-Perception" target="_blank" rel="noopener">OpenDriveLab/Birds-eye-view-Perception</a>
+    的源码级研究：它把 2022–2023 年自动驾驶鸟瞰图（BEV）感知从"论文各自为战"，收敛成一套可运行、可消融、可迁移的工程基线——
+    上层是 117 篇带官方链接的文献与 6 张工业/学术路线图，中层是抽象出框架无关数据增强原语的 <code>bev_toolbox</code>，
+    下层是 <code>waymo_playground</code>（BEVFormer++ 配方）与 <code>nuScenes_playground</code>（VCD / GAPretrain / FocalDistiller）两套可跑实现。
+  </p>
+
+  <div class="badges">
+    <span class="badge star">★ 1,385</span>
+    <span class="badge">⑂ 122 forks</span>
+    <span class="badge lic">Apache-2.0</span>
+    <span class="badge ver">939 files</span>
+    <span class="badge ver">147,281 LOC</span>
+    <span class="badge">117 papers</span>
+    <span class="badge">IEEE T-PAMI 2023</span>
+  </div>
+
+  <div class="meta-grid">
+    <div class="meta-item"><div class="k">研究对象</div><div class="v" style="font-size:14px">OpenDriveLab / Birds-eye-view-Perception</div></div>
+    <div class="meta-item"><div class="k">快照</div><div class="v">master @ dd329bd</div></div>
+    <div class="meta-item"><div class="k">最后提交</div><div class="v">2025-07-21</div></div>
+    <div class="meta-item"><div class="k">关联论文</div><div class="v" style="font-size:14px">arXiv:2209.05324 · T-PAMI 2023</div></div>
+    <div class="meta-item"><div class="k">作者单位</div><div class="v" style="font-size:14px">上海 AI Lab × 商汤研究院</div></div>
+    <div class="meta-item"><div class="k">报告日期</div><div class="v">2026-10-30</div></div>
+  </div>
+</div>
+
+<!-- ================= 1 ================= -->
+<section id="s1">
+  <h2><span class="num">01</span>一句话结论</h2>
+  <div class="callout c-key">
+    <span class="tag">核心判断</span>
+    <p><strong>这是一个"综述 + 工具箱 + 算法家族"三合一的 BEV 感知开源工程。</strong>它的真正价值不在代码量，而在于<strong>它是这个领域少见的、把"怎么做"和"为什么这么做"放在同一个仓库里的项目</strong>。</p>
+  </div>
+  <p>在仓库的 14.7 万行代码里，真正属于"这个项目原创"的只有 <code>bev_toolbox</code> 的 <strong>567 行</strong>和 <code>waymo_playground</code> 插件的几千行；VCD（8.5 万行）与 FocalDistiller（2.3 万行）本质上是 mmdet3d / BEVFormer 的代码树分叉。理解这一点，才能正确评估它的可维护性与参考价值。</p>
+</section>
+
+<!-- ================= 2 ================= -->
+<section id="s2">
+  <h2><span class="num">02</span>仓库档案：基本盘数据</h2>
+
+  <h3>2.1 社区指标</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>指标</th><th class="num">数值</th><th>指标</th><th class="num">数值</th></tr></thead>
+    <tbody>
+      <tr><td>⭐ Stars</td><td class="num up">1,385</td><td>🍴 Forks</td><td class="num">122</td></tr>
+      <tr><td>👀 Watchers</td><td class="num">1,385</td><td>❓ Open Issues</td><td class="num">4</td></tr>
+      <tr><td>创建时间</td><td class="num">2022-08-20</td><td>最后 push</td><td class="num">2025-07-21</td></tr>
+      <tr><td>默认分支</td><td class="num">master</td><td>仓库体积</td><td class="num">~25 MB</td></tr>
+      <tr><td>许可证</td><td class="num">Apache-2.0</td><td>Releases</td><td class="num">仅 v0.1</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="dim" style="font-size:13.5px">数据抓取于 2026-10-30，来自 GitHub REST API。</p>
+
+  <h3>2.2 代码体量（实测）</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>子项目</th><th class="num">文件数</th><th class="num">代码行数</th><th>定位</th></tr></thead>
+    <tbody>
+      <tr><td><code>nuScenes_playground/VCD</code></td><td class="num">520</td><td class="num">85,491</td><td>VCD 官方实现（<strong>内含完整 mmdet3d 分叉</strong>）</td></tr>
+      <tr><td><code>waymo_playground/projects</code></td><td class="num">123</td><td class="num">27,668</td><td>mmdet3d 插件：模型 / 数据集 / 损失 / Hook</td></tr>
+      <tr><td><code>nuScenes_playground/FocalDistiller</code></td><td class="num">168</td><td class="num">22,657</td><td>FD3D 官方实现（mmdet3d 插件 + KD 模块）</td></tr>
+      <tr><td><code>waymo_playground/tools</code></td><td class="num">42</td><td class="num">10,308</td><td>训练 / 评测 / 数据转换脚本</td></tr>
+      <tr style="background:#1d2536"><td><code>bev_toolbox</code></td><td class="num">8</td><td class="num" style="color:var(--warn);font-weight:700">567</td><td>★ 工具箱本体 — <strong>全部核心逻辑只有 567 行</strong></td></tr>
+      <tr><td><code>docs</code></td><td class="num">13</td><td class="num">273</td><td>综述清单 + 环境 / 数据文档</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>2.3 贡献者与时间线</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>贡献者</th><th class="num">提交数</th><th>身份</th></tr></thead>
+    <tbody>
+      <tr><td>ChonghaoSima</td><td class="num">52</td><td>上海 AI Lab，论文共同一作、OpenDriveLab 负责人</td></tr>
+      <tr><td>cyberknight2077</td><td class="num">45</td><td>上海 AI Lab</td></tr>
+      <tr><td>DevLinyan</td><td class="num">30</td><td>上海 AI Lab，VCD / GAPretrain 第一作者</td></tr>
+      <tr><td>cyberknight42</td><td class="num">18</td><td>上海 AI Lab</td></tr>
+      <tr><td>Zeng-Jia</td><td class="num">14</td><td>上海 AI Lab，FocalDistiller 第一作者</td></tr>
+      <tr><td>hli2020</td><td class="num">7</td><td>Hongyang Li，OpenDriveLab 负责人</td></tr>
+      <tr><td class="dim">faikit / EloiZ / Petros626 / HenryJunW</td><td class="num dim">9</td><td class="dim">社区贡献（issue 修复、README 校对）</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <pre><code>2022-08-20  仓库创建
+2022-10-13  v0.1 发布：数据增强 + Waymo 数据管线 + BEVFormer baseline + 1/5 Waymo mini 数据集
+2023-04-06  GAPretrain / FocalDistiller 论文上线
+2023-10-26  VCD 论文上线
+2023-11-04  ★ 综述被 IEEE T-PAMI 接收
+2023-11-27  FocalDistiller 代码发布
+2024-01-06  修正 config 路径 + 百度网盘链接
+2025-07-02  README 更新
+2025-07-21  更新 bev_lidar.md 文献清单（最后一次提交）</code></pre>
+
+  <div class="callout c-warn">
+    <span class="tag">活跃度判断</span>
+    <p>核心代码开发集中在 2022-10 至 2023-12，2024 年后基本只有文档维护。<strong>这是一个"已完结的学术项目"，不是一个持续演进的工程。</strong>依赖锁定在 torch 1.9.1 / mmcv-full 1.4.1 / mmdet3d 0.18.1 这套 2022 年的 OpenMMLab 栈上，今天想在新卡（40 系 / 50 系）上复现会遇到 CUDA 算子编译问题。</p>
+  </div>
+</section>
+
+<!-- ================= 3 ================= -->
+<section id="s3">
+  <h2><span class="num">03</span>它到底解决什么问题：BEV 感知的四个核心痛点</h2>
+  <p>要读懂这个仓库，得先理解 BEV 感知在 2022 年面临的四道坎——这也是综述论文（arXiv:2209.05324）的立论框架。</p>
+
+  <div class="grid2">
+    <div class="card"><h4>① 2D → 3D 的信息坍塌</h4><p>图像天然是透视投影，丢掉深度这一维。做 3D 检测必须做<strong>视角变换</strong>，综述把它归纳为三条技术路线（见下表）。</p></div>
+    <div class="card"><h4>② BEV 网格上的真值从哪来</h4><p>BEV 网格化表示（分割 / occupancy）需要稠密 3D 真值，而 Waymo / nuScenes 只有稀疏 3D 框。<strong>这是 BEV 分割长期落后于检测的根本原因。</strong></p></div>
+    <div class="card"><h4>③ 多源特征怎么融合</h4><p>Camera / LiDAR / Radar 特征在 BEV 空间对齐后如何融合？从 MVX-Net、PointPainting、CLOCs 到 TransFusion、DeepInteraction、BEVFusion 的完整谱系。</p></div>
+    <div class="card"><h4>④ 换个传感器配置还能用吗</h4><p>6 相机 vs 5 相机 vs 11 相机，间距、FOV 全变。<strong>"参数无关的泛化"</strong>是综述点名的未来方向。</p></div>
+  </div>
+
+  <h3>视角变换的三条技术路线</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>路线</th><th>核心机制</th><th>代表工作</th></tr></thead>
+    <tbody>
+      <tr><td><strong>2D → 3D</strong><br><span class="dim">Lift-Splat-Shoot 类</span></td><td>逐像素预测<strong>深度分布</strong>，把 2D 特征抬升到 3D 体素，再洒到 BEV 平面</td><td>LSS (ECCV'20)、BEVDet、BEVDepth、BEVDet4D、BEVStereo</td></tr>
+      <tr><td><strong>3D → 2D</strong><br><span class="dim">查询投影类</span></td><td>预定义 3D 参考点 / query，用内外参投影回图像平面采样特征</td><td>BEVFormer (ECCV'22)、DETR3D、PETR/PETRv2、PersFormer</td></tr>
+      <tr><td><strong>纯网络隐式变换</strong></td><td>用 MLP / Transformer 直接学映射，不显式建模几何</td><td>ImVoxelNet、OFTNet、GitNet 等</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <figure>
+    <img src="figs/general_overview.png" alt="BEV 感知总览图">
+    <figcaption><b>figs/general_overview.png — BEV 感知总览。</b>按输入模态三分（Camera / LiDAR / Fusion），并展开下层的检测 / 分割 / 占据三大基础任务。这是理解整个仓库的第一张图。</figcaption>
+  </figure>
+
+  <div class="grid2">
+    <figure style="margin:0">
+      <img src="figs/cam_pipeline_v2.jpg" alt="相机 BEV 管线">
+      <figcaption><b>cam_pipeline_v2.jpg</b> — 相机 BEV 管线的数据流。</figcaption>
+    </figure>
+    <figure style="margin:0">
+      <img src="figs/lidar_pipeline.jpg" alt="激光雷达 BEV 管线">
+      <figcaption><b>lidar_pipeline.jpg</b> — 激光雷达 BEV 管线的数据流。</figcaption>
+    </figure>
+  </div>
+
+  <h3>这个仓库的回应方式</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>痛点</th><th>回应</th></tr></thead>
+    <tbody>
+      <tr><td>① 视角变换</td><td><code>docs/paper_list/</code> 三张谱系表（35 + 21 + 5 条）+ <code>waymo_playground</code> 里 3D→2D query 路线的实现</td></tr>
+      <tr><td>② 稠密真值</td><td>综述中的 Occupancy 分支 + 数据集对照表（<code>docs/paper_list/dataset.md</code>）</td></tr>
+      <tr><td>③ 多源融合</td><td><strong>VCD</strong>：把"融合能力"蒸馏进纯相机学生模型</td></tr>
+      <tr><td>④ 配置泛化</td><td><code>bev_toolbox</code> 把视角变换无关的增强原语抽象出来（多视图尺度 / 翻转 + 内外参同步变换）</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p><strong>一句话</strong>：痛点①②③靠"综述"回答（告诉你有哪些路可走），痛点③的工程答案和痛点④的抽象答案靠"工具箱"和"算法家族"回答。</p>
+</section>
+
+<!-- ================= 4 ================= -->
+<section id="s4">
+  <h2><span class="num">04</span>仓库解剖：三块拼图</h2>
+  <div class="tree">
+<span class="c">Birds-eye-view-Perception/</span>
+├── <span class="f">README.md</span>                      <span class="c"># 项目门面：综述 + 工具箱 + 算法家族导航</span>
+├── <span class="f">CITATION.cff</span>                   <span class="c"># 引用元数据（引用名 BEVPerception-Survey-Recipe）</span>
+├── <span class="f">setup.py</span>                       <span class="c"># pip install bev-toolbox（包名 bev-toolbox）</span>
+├── <span class="f">LICENSE</span>                        <span class="c"># Apache-2.0</span>
+│
+├── <span class="d">docs/</span>                          <span class="c">【拼图 1】文献综述层</span>
+│   ├── <span class="f">installation.md</span>            <span class="c">#   环境：torch1.9.1 / mmcv1.4.1 / mmdet3d0.18.1</span>
+│   ├── <span class="f">data_preparation.md</span>        <span class="c">#   数据：Waymo v1.3 → Kitti 格式 + mini 数据集</span>
+│   ├── <span class="f">waymo_setup.md</span>             <span class="c">#   训练 / 评测一键脚本</span>
+│   └── <span class="d">paper_list/</span>                <span class="c">#   ★ 7 份分类清单 + 3 张分类索引</span>
+│       ├── <span class="f">academia.md</span>            <span class="c">#     学术全景（2 张大图）</span>
+│       ├── <span class="f">industry.md</span>            <span class="c">#     工业路线（1 张大图）</span>
+│       ├── <span class="f">dataset.md</span>             <span class="c">#     数据集对照（1 张大图）</span>
+│       ├── <span class="f">bev_camera.md</span>          <span class="c">#     ★ 35 篇：BEV 相机</span>
+│       ├── <span class="f">bev_lidar.md</span>           <span class="c">#     ★ 21 篇：BEV 激光雷达</span>
+│       ├── <span class="f">bev_fusion.md</span>          <span class="c">#     ★  5 篇：BEV 融合</span>
+│       ├── <span class="f">camera_detection.md</span>    <span class="c">#     14 篇：传统单目 3D 检测</span>
+│       ├── <span class="f">lidar_detection.md</span>     <span class="c">#      9 篇：传统点云 3D 检测</span>
+│       ├── <span class="f">lidar_segmentation.md</span>  <span class="c">#     18 篇：传统点云分割</span>
+│       └── <span class="f">sensor_fusion.md</span>       <span class="c">#     15 篇：传统传感器融合</span>
+│
+├── <span class="d">bev_toolbox/</span>                   <span class="c">【拼图 2】框架无关的 BEV 增强工具箱（567 行）</span>
+│   ├── <span class="f">init_toolbox.py</span>            <span class="c">#   init_toolbox_mmdet3d() 入口</span>
+│   ├── <span class="d">data_aug/</span>
+│   │   ├── <span class="f">functional.py</span>          <span class="c">#   ★ 纯函数实现（numpy + cv2，无框架依赖）</span>
+│   │   └── <span class="f">transforms.py</span>          <span class="c">#   ★ 可调用类（多视图尺度 / 多视图水平翻转）</span>
+│   └── <span class="d">wrapper_mmdet3d/</span>
+│       └── <span class="f">data_aug_mmdet3d.py</span>    <span class="c">#   mmdet3d PIPELINES 注册包装</span>
+│
+├── <span class="d">waymo_playground/</span>              <span class="c">【拼图 3a】Waymo 上的 BEVFormer++ 配方</span>
+│   ├── <span class="d">projects/</span>
+│   │   ├── <span class="d">configs/</span>               <span class="c">#   配置：baseline / ms_flip / 各种 schedule</span>
+│   │   └── <span class="d">mmdet3d_plugin/</span>        <span class="c">#   ★ 插件：模型、数据集、损失、Hook、注意力</span>
+│   └── <span class="d">tools/</span>                     <span class="c">#   train_video.py / test_video.py / create_data.py</span>
+│
+├── <span class="d">nuScenes_playground/</span>           <span class="c">【拼图 3b】BEV 算法家族</span>
+│   ├── <span class="f">GAPretrain.md</span>              <span class="c">#   几何感知预训练（仅文档，代码未释出）</span>
+│   ├── <span class="d">VCD/</span>                       <span class="c">#   ★ VCD 官方实现（含 mmdet3d 分叉 + distiller/）</span>
+│   └── <span class="d">FocalDistiller/</span>            <span class="c">#   ★ FD3D 官方实现（含 kd/ 蒸馏模块）</span>
+│
+├── <span class="d">example/</span>                       <span class="c"># 5 路相机样例图 + 坐标系说明</span>
+└── <span class="d">figs/</span>                          <span class="c"># 10 张配图（总览/管线/消融/数据集/工业路线）</span>
+  </div>
+</section>
+
+<!-- ================= 5 ================= -->
+<section id="s5">
+  <h2><span class="num">05</span>模块一 · 文献综述层（<code>docs/</code>）</h2>
+
+  <h3>5.1 设计思路：图 + 清单的双轨制</h3>
+  <p>这个仓库的文献部分做了一件很聪明的事——<strong>把"需要看图才能理解的关系"和"需要逐条检索的文献"分开承载</strong>。</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>承载形式</th><th>具体内容</th></tr></thead>
+    <tbody>
+      <tr><td><strong>图</strong><br><span class="dim">figs/*.jpg，共 10 张</span></td><td>
+        <code>general_overview.png</code> 总览（模态三分 × 检测/分割/占据）·
+        <code>cam_pipeline_v2.jpg</code> / <code>lidar_pipeline.jpg</code> 两条管线数据流 ·
+        <code>important_methods.jpg</code> 重要方法脉络 ·
+        <code>important_methods_leaderboard.jpg</code> 榜单性能 ·
+        <code>dataset_table.jpg</code> 数据集对照 ·
+        <code>industrial_pipeline.jpg</code> <strong>工业界路线图</strong> ·
+        <code>cam_ablation.jpg</code> / <code>lidar_ablation.jpg</code> 消融 ·
+        <code>waymo_coordinate.png</code> Waymo 自车坐标系
+      </td></tr>
+      <tr><td><strong>清单</strong><br><span class="dim">docs/paper_list/*.md</span></td><td>每条统一格式：<code>标题 / [paper] / [project] / [supplemental] / 会议年份 / 别名</code>，共 <strong>117 条</strong></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>清单</th><th class="num">条目数</th><th>代表条目</th></tr></thead>
+    <tbody>
+      <tr><td><code>bev_camera.md</code></td><td class="num">35</td><td>LSS、BEVDet 系列、BEVDepth、DSGN、LIGA-Stereo、BEVFormer、PETR/PETRv2、DETR3D、LaRa、HDMapNet、BEVSegFormer…</td></tr>
+      <tr><td><code>bev_lidar.md</code></td><td class="num">21</td><td>VoxelNet、SECOND、CenterPoint、PV-RCNN/++、SA-SSD、Voxel R-CNN、SST、AFDetV2、PointPillars、PIXOR…</td></tr>
+      <tr><td><code>bev_fusion.md</code></td><td class="num">5</td><td>UVTR、MVFuseNet、UniFormer、BEVFusion(MIT)、BEVFusion(ADLab)</td></tr>
+      <tr><td><code>lidar_segmentation.md</code></td><td class="num">18</td><td>PointNet/++、SpiderCNN、DGCNN、KPConv、RandLA-Net、PolarNet、Cylinder3D、SPVConv、2DPASS…</td></tr>
+      <tr><td><code>sensor_fusion.md</code></td><td class="num">15</td><td>MVX-Net、MMF、ContFuse、AutoAlignV2、DeepFusion、TransFusion、DeepInteraction、PointPainting…</td></tr>
+      <tr><td><code>camera_detection.md</code></td><td class="num">14</td><td>Mono3D、Deep3DBox、3D-RCNN、CenterNet、Pseudo-LiDAR、MonoPSR、OFTNet、CaDDN、FCOS3D、PGD…</td></tr>
+      <tr><td><code>lidar_detection.md</code></td><td class="num">9</td><td>VoteNet、PointRCNN、Part-A²、H3DNet、Pointformer、BRNet、Group-Free、RBGNet、3DSSD…</td></tr>
+      <tr style="background:#1d2536"><td><strong>合计</strong></td><td class="num" style="color:var(--warn);font-weight:700">117</td><td class="dim">覆盖 BEV 感知的三模态 × 多任务谱系</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <figure>
+    <img src="figs/important_methods.jpg" alt="重要方法脉络">
+    <figcaption><b>figs/important_methods.jpg</b> — 近年 BEV 感知重要方法脉络图。<code>docs/paper_list/academia.md</code> 里 "Academic Summary" 一节只有这张图和 <code>important_methods_leaderboard.jpg</code>，<strong>没有任何文字索引</strong>。</figcaption>
+  </figure>
+
+  <figure>
+    <img src="figs/industrial_pipeline.jpg" alt="工业界 BEV 路线图">
+    <figcaption><b>figs/industrial_pipeline.jpg</b> — 工业界 BEV 感知路线图。这是很多纯学术仓库没有的视角，对做量产落地的人价值很高。</figcaption>
+  </figure>
+
+  <h3>5.2 评价</h3>
+  <div class="callout c-ok">
+    <span class="tag">优点</span>
+    <p>分类维度切得干净（模态 × 任务 × 传统/现代），每条都带官方代码链接，是<strong>可以直接当书签栏用</strong>的导航。</p>
+  </div>
+  <div class="callout c-warn">
+    <span class="tag">局限</span>
+    <ol style="margin-bottom:0">
+      <li><strong>停更于 2025-07</strong>，2023 年后的重要工作（BEVFormer v2、StreamPETR、SparseBEV、FB-BEV、UniAD、BEVWorld、GaussianLSS 等）全部缺席。</li>
+      <li><code>academia.md</code> / <code>industry.md</code> / <code>dataset.md</code> <strong>只是图片</strong>，没有文字索引或链接表——图片一旦看不全，信息就丢了。</li>
+      <li><code>bev_fusion.md</code> 只有 5 条，相对 camera(35) / lidar(21) 明显偏轻，而这恰是当前工业界最热的方向。</li>
+      <li>部分条目有笔误（如 <code>lidar_detection.md</code> 里 Group-Free 的 paper 链接写成相对路径 <code>_Object_Detection_via_Transformers_ICCV_2021_paper.pdf</code>，点不开）。</li>
+      <li><strong>综述与仓库内容重复度低</strong>：综述讲 100+ 篇论文，仓库只实现了 BEVFormer 一条主线的变体，"survey" 和 "recipe" 的耦合度不高。</li>
+    </ol>
+  </div>
+</section>
+
+<!-- ================= 6 ================= -->
+<section id="s6">
+  <h2><span class="num">06</span>模块二 · BEV Toolbox（<code>bev_toolbox/</code>）</h2>
+
+  <h3>6.1 定位</h3>
+  <p>一个<strong>只依赖 numpy + opencv</strong> 的独立小包（<code>pip install bev-toolbox</code>），把 BEV 感知中"与具体框架无关"的数据增强逻辑抽出来，同时提供 mmdet3d 的即插即用包装。全部逻辑 567 行，代码质量相当高——注释完整、类型标注齐全、docstring 规范。</p>
+
+  <h3>6.2 核心 API</h3>
+  <pre><code>from bev_toolbox.data_aug import RandomScaleImageMultiViewImage, RandomHorizontalFlipMultiViewImage</code></pre>
+
+  <h4>① <code>RandomScaleImageMultiViewImage(scales=[0.5, 1.0, 1.5])</code></h4>
+  <p>多视图同步随机缩放。关键在于<strong>缩放后必须同步更新相机内参和 lidar2img 矩阵</strong>：</p>
+  <div class="code-lbl">bev_toolbox/data_aug/functional.py:36</div>
+  <pre><code>scale_factor = np.eye(4)
+scale_factor[0, 0] *= rand_scale
+scale_factor[1, 1] *= rand_scale
+imgs_new           = [cv2.resize(img, (x_size[i], y_size[i]), ...) for i, img in enumerate(imgs)]
+cam_intrinsics_new = [scale_factor @ K for K in cam_intrinsics]   # K ← S·K
+lidar2img_new      = [scale_factor @ l2i for l2i in lidar2img]      # l2i ← S·l2i</code></pre>
+  <div class="callout c-info">
+    <span class="tag">为什么重要</span>
+    <p>多相机是 BEV 感知的标配，但<strong>多视图随机缩放在公开实现里几乎没人做</strong>——它要求所有相机用同一个 scale（否则相机之间的相对几何会失真，BEV 拼接出现错位），且内外参要同步改。这个实现把两件事都做对了。</p>
+  </div>
+
+  <h4>② <code>RandomHorizontalFlipMultiViewImage(flip_ratio=0.5, dataset='waymo')</code></h4>
+  <p>多视图水平翻转，是<strong>这个工具箱最有技术含量的部分</strong>。它要同时处理 4 类数据：</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>对象</th><th>Waymo 坐标系</th><th>nuScenes 坐标系</th><th>源码位置</th></tr></thead>
+    <tbody>
+      <tr><td>图像</td><td><code>np.flip(img, axis=1)</code></td><td>同左</td><td class="kv dim">functional.py:77</td></tr>
+      <tr><td>3D 框</td><td><code>y → -y</code>，<code>yaw → -yaw + π</code></td><td><code>x → -x</code>，<code>yaw → -yaw</code></td><td class="kv dim">functional.py:101</td></tr>
+      <tr><td>相机内外参</td><td>外参左乘 <code>diag(1,-1,1,1)</code>；<code>fx → -fx</code>，<code>cx → w - cx</code></td><td>外参左乘 <code>diag(-1,1,1,1)</code></td><td class="kv dim">functional.py:118</td></tr>
+      <tr><td>CAN bus</td><td><code>canbus[-1] → -canbus[-1]</code></td><td>同左</td><td class="kv dim">functional.py:160</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout c-key">
+    <span class="tag">坐标系差异的细节（最容易踩坑的地方）</span>
+    <ul style="margin-bottom:0">
+      <li><strong>Waymo</strong>：自车坐标系 x 轴朝前、y 轴朝左。绕垂直轴翻转 180° 后，一个中心在 (x, y)、朝向 yaw 的框，变为中心 (x, −y)、朝向 <strong>−yaw + π</strong>（因为翻转把朝向也反了 180°）。</li>
+      <li><strong>nuScenes</strong>：x 轴朝右、y 轴朝前。翻转轴不同，因此是 <code>x → −x</code>，朝向变为 <strong>−yaw</strong>（不补 π，因为翻转轴就是物体的纵轴）。</li>
+    </ul>
+  </div>
+
+  <figure>
+    <img src="figs/waymo_coordinate.png" alt="Waymo 自车坐标系">
+    <figcaption><b>figs/waymo_coordinate.png</b> — Waymo Open Dataset 的自车坐标系定义（右手系、x 轴朝前、原点在车尾）。<code>example/example.md</code> 引用了它，工具箱 README 也贴了 Waymo / nuScenes 两个官方坐标系链接。</figcaption>
+  </figure>
+
+  <h3>6.3 mmdet3d 包装层</h3>
+  <p><code>bev_toolbox/wrapper_mmdet3d/data_aug_mmdet3d.py</code> 用 <code>@PIPELINES.register_module()</code> 把两个类注册进 mmdet3d 的 pipeline 体系：</p>
+  <pre><code><span class="c"># waymo_playground/tools/train_video.py</span>
+from bev_toolbox.init_toolbox import init_toolbox_mmdet3d
+init_toolbox_mmdet3d()
+
+<span class="c"># 配置文件里直接写</span>
+train_pipeline = [
+    dict(type='RandomHorizontalFlipMultiViewImage', dataset='waymo'),
+    dict(type='RandomScaleImageMultiViewImage', scales=[0.9, 1.0, 1.1]),
+]</code></pre>
+
+  <div class="callout c-danger">
+    <span class="tag">实现瑕疵（源码可见，非笔误）</span>
+    <ol style="margin-bottom:0">
+      <li><code>RandomScaleImageMultiViewImage.__call__</code> 里 <code>results['cam_intrinsic']</code> 的更新被注释掉了（<code># results['cam_intrinsic'] = cam_intrinsics_new</code>），只更新了 <code>lidar2img</code>。若下游模块直接读 <code>cam_intrinsic</code> 会拿到旧值——实践中因为都从 <code>lidar2img</code> 推算所以没暴露。</li>
+      <li><code>RandomHorizontalFlipMultiViewImage.__call__</code> 里同样<strong>没有回写 <code>cam_intrinsic</code></strong>，只更新了 <code>lidar2cam</code> 和 <code>lidar2img</code>。</li>
+      <li><code>horizontal_flip_cam_params</code> 对 <code>cam_intrinsic</code> 是<strong>原地修改</strong>（<code>cam_intrinsic[0,0] = -cam_intrinsic[0,0]</code>），会污染调用方的原始数组。</li>
+    </ol>
+  </div>
+
+  <h3>6.4 工具箱没做的事</h3>
+  <p><code>bev_toolbox/README.md</code> 的 "Ongoing Features" 勾选框很坦诚地列出了未完成项：</p>
+  <div class="grid2">
+    <div class="card"><h4>已完成</h4><ul><li>✓ 随机水平翻转</li><li>✓ 随机尺度</li></ul></div>
+    <div class="card"><h4>未完成</h4><ul><li>☐ Grid Mask（实际在 detector 里实现了，未抽回 toolbox）</li><li>☐ Test-time Augmentation / Weighted Box Fusion / Two-stage Ensemble</li><li>☐ BEV Encoder / Loss Family 的抽象</li><li>☐ BEV 可视化、完整 API 文档</li><li>☐ detectron2 适配（"计划中"）</li></ul></div>
+  </div>
+</section>
+
+<!-- ================= 7 ================= -->
+<section id="s7">
+  <h2><span class="num">07</span>模块三 · Waymo Playground（<code>waymo_playground/</code>）</h2>
+  <p>这是整个仓库<strong>算法含量最高、最值得精读</strong>的部分。它是 BEVFormer 在 <strong>Waymo Open Dataset</strong> 上的工程化复现 + 系统性增强，产出了综述论文中的 <strong>BEVFormer++</strong>。</p>
+
+  <h3>7.1 为什么要做 Waymo 而不是 nuScenes？</h3>
+  <ul>
+    <li><strong>Waymo 是 2022 年 Waymo Open Dataset Challenge 的主战场</strong>，BEVFormer++ 在 <strong>3D Camera-Only Detection 赛道拿到第 1 名</strong>（最终分 56.2 LET-mAPL）。这是整个 toolbox 存在的意义。</li>
+    <li>Waymo 的传感器配置（1 前 + 4 侧 + 1 后，实际用 5 路）与 nuScenes 差异大，可以验证"配方"是否可迁移。</li>
+    <li>提供了 <strong>1/5 数据量的 Waymo mini（Kitti 格式）</strong>，让没有完整算力的人也能跑通全流程——这是 "playground" 一词的由来。</li>
+  </ul>
+
+  <h3>7.2 关键设计：自车运动补偿（ego-motion compensation）</h3>
+  <p><code>waymo_playground/projects/mmdet3d_plugin/models/modules/bev_transformer.py</code> 是整个 playground 的算法核心。BEVFormer 的时序融合需要把上一帧 BEV 特征对齐到当前帧，这个仓库实现了三种对齐手段：</p>
+
+  <h4>(a) 旋转补偿 <code>rotate_prev_bev='waymo_rotate'</code></h4>
+  <div class="code-lbl">bev_transformer.py:283</div>
+  <pre><code>prev_bev = prev_bev.reshape(bev_h, bev_w, -1).permute(2, 0, 1)
+prev_bev = rotate(prev_bev, rotation_angle, center=[70, 150])   <span class="c"># 绕 BEV 网格中心旋转</span>
+prev_bev = prev_bev.permute(1, 2, 0).reshape(bev_h * bev_w, num_prev_bev, -1)</code></pre>
+  <div class="callout c-warn">
+    <span class="tag">技术债</span>
+    <p><code>center=[70, 150]</code> 是<strong>硬编码</strong>的 BEV 网格中心（对应 <code>bev_h=300, bev_w=220</code> 和 <code>point_cloud_range=[-35,-75,-3,75,75,4]</code> 的配置），换配置必须同步改这个参数。</p>
+  </div>
+
+  <h4>(b) 平移补偿 <code>use_shift='waymo_shift'</code></h4>
+  <div class="code-lbl">bev_transformer.py:266</div>
+  <pre><code>delta_x = can_bus[0]; delta_y = can_bus[1]
+ego_angle = can_bus[-2] / np.pi * 180
+translation_angle = np.arctan2(delta_y, delta_x) / np.pi * 180
+bev_angle = ego_angle - translation_angle
+shift_y = translation_length * np.sin(bev_angle/180*np.pi) / grid_length_y / bev_h
+shift_x = translation_length * np.cos(bev_angle/180*np.pi) / grid_length_x / bev_w</code></pre>
+
+  <h4>(c) CAN bus 条件化 <code>use_can_bus=True</code></h4>
+  <div class="code-lbl">bev_transformer.py:306</div>
+  <pre><code>self.can_bus_mlp = nn.Sequential(
+    nn.Linear(18, self.embed_dims // 2), nn.ReLU(inplace=True),
+    nn.Linear(self.embed_dims // 2, self.embed_dims), nn.ReLU(inplace=True))
+...
+can_bus = self.can_bus_mlp(can_bus)
+bev_embed = bev_embed + can_bus * self.use_can_bus</code></pre>
+  <p>把 18 维 CAN bus 向量经 MLP 编码后<strong>加到 BEV embedding 上</strong>，让网络显式感知自车状态（速度、转向角等）。</p>
+
+  <div class="callout c-info">
+    <span class="tag">为什么这段值得读</span>
+    <p>这三点（旋转 + 平移 + CAN bus 条件化）<strong>合起来是 BEVFormer 原始实现没有的</strong>，属于本仓库对时序融合的实质性改进，也解释了为什么在 Waymo 上能拿到第一名。</p>
+  </div>
+
+  <h3>7.3 配方清单与消融结果</h3>
+  <p><code>bev_toolbox/README.md</code> 给出了<strong>在 Waymo mini（1/5 数据）上、用 R101+DCN 骨干、DETR 头</strong>的逐项消融：</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>#</th><th>Trick</th><th class="num">LET-mAPL</th><th class="num">LET-mAPH</th><th class="num">L1/mAPH (Car)</th><th>相对基线</th></tr></thead>
+    <tbody>
+      <tr style="background:#1d2536"><td>0</td><td><strong>Baseline</strong></td><td class="num">34.9</td><td class="num">46.3</td><td class="num">25.5</td><td class="dim">—</td></tr>
+      <tr><td>1</td><td>Multi-scale resize + Flip</td><td class="num">35.6</td><td class="num">46.9</td><td class="num">26.8</td><td class="up">+0.7 / +0.6 / +1.3</td></tr>
+      <tr><td>2</td><td>Conv offset in TSA</td><td class="num">35.9</td><td class="num">48.1</td><td class="num">25.6</td><td class="up">+1.0 / +1.8 / +0.1</td></tr>
+      <tr><td>3</td><td>Deformable view encoder</td><td class="num">36.1</td><td class="num">48.1</td><td class="num">25.9</td><td class="up">+1.2 / +1.8 / +0.4</td></tr>
+      <tr><td>4</td><td>Corner pooling</td><td class="num">35.6</td><td class="num">46.9</td><td class="num">26.0</td><td class="up">+0.7 / +0.6 / +0.5</td></tr>
+      <tr><td>5</td><td>2d auxiliary loss</td><td class="num">35.3</td><td class="num">47.4</td><td class="num">24.6</td><td class="down">−0.6 / +1.1 / −0.9</td></tr>
+      <tr><td>6</td><td>2d aux loss + 可学习 loss 权重</td><td class="num">36.2</td><td class="num">48.1</td><td class="num">25.4</td><td class="up">+1.3 / +1.8 / −0.1</td></tr>
+      <tr><td>7</td><td>Smooth L1 loss</td><td class="num dim">—</td><td class="num dim">—</td><td class="num">26.2</td><td class="up">Car 精度 +0.7</td></tr>
+      <tr><td>8</td><td>Label smoothing</td><td class="num">36.0</td><td class="num">46.7</td><td class="num dim">—</td><td class="up">+1.1 / +0.4</td></tr>
+      <tr><td>9</td><td>2× BEV scale</td><td class="num dim">—</td><td class="num dim">—</td><td class="num">25.5</td><td class="dim">持平</td></tr>
+      <tr><td>10</td><td>Sync BN</td><td class="num dim">—</td><td class="num dim">—</td><td class="num">25.5</td><td class="dim">持平</td></tr>
+      <tr><td>11</td><td>EMA</td><td class="num dim">—</td><td class="num dim">—</td><td class="num">25.6</td><td class="up">+0.1</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h4>从这张表能读出的真实结论（比表本身更有价值）</h4>
+  <ol>
+    <li><strong>数据增强是性价比最高的单项</strong>（+0.7 mAPL 且 Car 精度 +1.3），而它在原始 BEVFormer 里是缺的。</li>
+    <li><strong>可学习 loss 权重比裸 2D 辅助损失更重要</strong>：单独加 2D 辅助损失会掉 0.6 mAP，加上可学习权重后才变成 +1.3。<strong>这说明"辅助损失"这类技巧必须配权重调度，否则负收益。</strong></li>
+    <li><strong>大部分 trick 的增益在 1 个点以内</strong>——单点 trick 收益有限，论文的 56.2 LET-mAPL 靠的是<strong>组合 + 多检测头集成 + LET-IoU NMS</strong>。</li>
+    <li><strong>2× BEV scale 和 Sync BN 在这份数据上完全没动</strong>（状态是 ☐ TODO，数字留空），说明它们要么没验证过要么收益不可测。</li>
+  </ol>
+
+  <div class="callout c-warn">
+    <span class="tag">数据一致性小问题</span>
+    <p><code>bev_toolbox/README.md</code> 的 Baseline 是 34.9 / 46.3，而 <code>waymo_playground/.../data_aug/README.md</code> 的 Baseline 是 34.6 / 46.1。同一份表格两个版本，且后者的 "Multi-scale resize, Flip" 行 mAPH 是空缺。README 自己也注明："<em>results were run on data with png format. We are revalidating these results on the data with jpg format</em>"。<strong>这些数字属于未最终校验的中间态，引用需谨慎。</strong></p>
+  </div>
+
+  <h3>7.4 代码结构：三类"配方"的实现位置</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Trick 类型</th><th>实现文件</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>数据增强</td><td class="kv"><code>bev_toolbox/data_aug/</code></td><td>翻转、尺度、Grid Mask（在 detector 内）</td></tr>
+      <tr><td>BEV 编码器</td><td class="kv"><code>models/modules/encoderV2.py</code><br><code>models/attns/</code></td><td>6 个注意力实现：V2/V4 多尺度可变形注意力、3D 版、BEV 交叉可变形注意力、时序自注意力、空间交叉注意力</td></tr>
+      <tr><td>检测头</td><td class="kv"><code>models/dense_heads/</code></td><td>5 个头：detr_head / detr_head2 / centerpoint_head / anchor_head(FreeAnchor) / <strong>corner_pooling</strong></td></tr>
+      <tr><td>损失</td><td class="kv"><code>models/loss/</code></td><td><code>cwd.py</code>（Channel-wise Divergence，用于蒸馏）、<code>dice_loss.py</code>、<code>fl_loss_w_lable_smoothing.py</code>（Focal Loss + 标签平滑）</td></tr>
+      <tr><td>训练技巧</td><td class="kv"><code>models/hooks/</code></td><td><code>sync_norm.py</code>（CustomSyncNormHook）、<code>hooks.py</code>（BaseEMAHook + 指数/线性动量变体）</td></tr>
+      <tr><td>后处理</td><td class="kv"><code>core/bbox/coders/</code></td><td><code>nms_free_coder.py</code>（DETR 式无 NMS 解码）、<code>nms_coder.py</code></td></tr>
+      <tr><td>匹配</td><td class="kv"><code>core/bbox/assigners/hungarian_assigner_3d.py</code><br><code>core/bbox/match_costs/</code></td><td>3D 匈牙利匹配 + <code>BBox3DL1Cost</code> / <code>IoUCost</code></td></tr>
+      <tr><td>优化器</td><td class="kv"><code>models/opt/adamw.py</code></td><td>自定义 AdamW</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h4>Corner Pooling 的实现</h4>
+  <p><code>bevformer_detr_head_corner_pooling.py</code> 值得单独一提，它把 CornerNet 的四角池化思想搬到了 BEV 特征图上：</p>
+  <pre><code><span class="c"># bevformer_detr_head_corner_pooling.py</span>
+class MyCornerPool(BaseModule):
+    def __init__(self, in_channels, ...):
+        self.top_pool    = CornerPool('top')
+        self.left_pool   = CornerPool('left')
+        self.bottom_pool = CornerPool('bottom')
+        self.right_pool  = CornerPool('right')
+        self.aftpool_conv = ConvModule(in_channels*2, in_channels, 3, padding=1, ...)
+
+    def forward(self, x):
+        top_feat, left_feat     = self.top_pool(x), self.left_pool(x)
+        bottom_feat, right_feat = self.bottom_pool(x), self.right_pool(x)
+        return self.aftpool_conv(
+            torch.cat([top_feat + left_feat, bottom_feat + right_feat], dim=1)) + x</code></pre>
+  <div class="callout c-info">
+    <span class="tag">设计动机</span>
+    <p>逐层对 BEV 特征图做上下左右四个方向的 Corner Pooling，相邻两方向相加后拼接卷积，残差连接输出。<strong>动机是 BEV 特征图上的目标通常表现为"局部块状极值"，方向性池化能强化这种结构先验。</strong>这是仓库里最有"论文味道"的一处独立贡献（消融增益 +0.7 mAPL）。</p>
+  </div>
+
+  <figure>
+    <img src="figs/cam_ablation.jpg" alt="相机分支消融实验">
+    <figcaption><b>figs/cam_ablation.jpg</b> — 相机分支的消融实验总览（对应综述论文的相机侧实验章节）。</figcaption>
+  </figure>
+  <figure>
+    <img src="figs/lidar_ablation.jpg" alt="激光雷达分支消融实验">
+    <figcaption><b>figs/lidar_ablation.jpg</b> — 激光雷达分支的消融实验总览。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 8 ================= -->
+<section id="s8">
+  <h2><span class="num">08</span>模块四 · BEV 算法家族（<code>nuScenes_playground/</code>）</h2>
+  <p>这是仓库的"算法产出"部分，聚焦<strong>知识蒸馏</strong>这条主线——因为 BEV 感知的主流范式是 BEVFormer / BEVDepth 这类<strong>重型 Transformer</strong>，推理成本高，而 LiDAR 模型又贵又需要激光雷达。<strong>"把多模态专家的能力蒸馏进纯相机学生"</strong>是最划算的落地路径。</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>方法</th><th>会议</th><th>教师（Expert）</th><th>学生（Apprentice）</th><th>状态</th></tr></thead>
+    <tbody>
+      <tr><td><strong>VCD</strong></td><td>NeurIPS 2023</td><td>视觉中心多模态检测器</td><td>纯相机检测器</td><td class="up">✅ 代码 + 权重（online）</td></tr>
+      <tr><td><strong>GAPretrain</strong></td><td>arXiv 2023</td><td>仅 LiDAR 检测器</td><td>纯相机检测器</td><td class="down">⚠️ 仅文档，代码未释出</td></tr>
+      <tr><td><strong>FocalDistiller</strong></td><td>CVPR 2023</td><td>相机检测器</td><td>相机检测器</td><td class="up">✅ 代码（部分），无权重</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>8.1 VCD — Leveraging Vision-Centric Multi-Modal Expertise（NeurIPS 2023）</h3>
+  <p><strong>核心思想</strong>：训练一个"视觉中心的多模态专家"（以相机分支为主干、融合 LiDAR 特征），然后把它的知识蒸馏给一个轻量的纯相机学生（BEVDet4D-R50）。</p>
+
+  <div class="tree">
+<span class="c">nuScenes_playground/VCD/</span>
+├── <span class="f">setup.py</span>                    <span class="c"># 注册 bev_pool_v2_ext CUDA 算子</span>
+├── <span class="d">configs/</span>
+│   ├── <span class="d">vcd/</span>                    <span class="c"># vcd-convnext-base.py（教师）/ vcd-r50.py（学生）</span>
+│   │                        <span class="c"># MotionDistiller_convnext-r50-4motion.py（蒸馏）</span>
+│   │                        <span class="c"># Combine_convnext-r50.py</span>
+│   └── <span class="c">&lt;25 个模型配置&gt;</span>          <span class="c"># centerpoint / second / pointpillars / 3dssd / pgd …</span>
+├── <span class="d">mmdet3d/</span>                    <span class="c"># ★ mmdet3d 的完整分叉（含 CUDA 算子源码）</span>
+│   ├── <span class="d">distiller/</span>              <span class="c"># ★ 本仓库新增</span>
+│   │   ├── <span class="f">builder.py</span>          <span class="c">#   DISTILLER / DISTILL_LOSSES 注册表</span>
+│   │   ├── <span class="d">distillers/</span>
+│   │   │   ├── <span class="f">motion_distiller.py</span>   <span class="c"># ★ MotionDistiller（运动感知蒸馏）</span>
+│   │   │   └── <span class="f">combine_distiller.py</span>  <span class="c">#   CombineDistiller（组合蒸馏）</span>
+│   │   └── <span class="d">losses/</span>             <span class="c"># klloss / l1loss / l2loss / bceloss /</span>
+│   │                        <span class="c"># maskedbceloss / norml2loss / cwd</span>
+│   ├── <span class="f">models/detectors/vcd.py</span> <span class="c"># ★ class VCD(CenterPoint)</span>
+│   └── <span class="d">ops/bev_pool_v2/</span>        <span class="c"># BEVPoolv2 CUDA 算子</span>
+└── <span class="d">tools/</span>                      <span class="c"># dist_train / dist_test / dist_distill / dist_test_stu</span>
+  </div>
+
+  <h4><code>MotionDistiller</code> 的设计</h4>
+  <ul>
+    <li><strong>双模型结构</strong>：内部同时持有 <code>teacher</code>（冻结，<code>requires_grad=False</code>，<code>eval()</code> 模式）和 <code>student</code>。</li>
+    <li><strong>多位置蒸馏</strong>：可分别对 <strong>PV（图像空间）</strong>、<strong>BEV（鸟瞰空间）</strong>、<strong>Depth（深度分布）</strong> 三处开蒸馏通道，每路都有独立的 loss 集合。</li>
+  </ul>
+  <div class="code-lbl">configs/vcd/MotionDistiller_convnext-r50-4motion.py</div>
+  <pre><code>teacher_cfg = 'configs/vcd/vcd-convnext-base.py'   <span class="c"># ConvNeXt-B 多模态专家</span>
+student_cfg = 'configs/vcd/vcd-r50.py'              <span class="c"># 纯相机 R50 学生</span>
+distill_on_PV    = False   <span class="c"># 配置里关掉了</span>
+distill_on_BEV   = True    <span class="c"># ★ 主战场</span>
+distill_on_depth = False
+channel_PV = 64;  channel_BEV = 256;  channel_depth = 118
+feats_align_norm = 'bn'    <span class="c"># 用 BN 对齐师生特征分布</span></code></pre>
+  <p>师生 BEV 特征通道不同时（ConvNeXt-B 教师 vs R50 学生），用 <code>_make_deconv_layers()</code> 构造反卷积适配层把学生通道映射到教师通道。<code>single_adj_objects()</code> / <code>prepare_inputs()</code> 负责处理"相邻帧之间的运动物体"——这是 VCD 论文 "vision-centric multi-modal" 的关键：教师能"看到" LiDAR 补足的部分，学生需要从时序里学。</p>
+
+  <h4>官方结果（<code>VCD/README.md</code>）</h4>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>方法</th><th>Backbone</th><th>输入尺寸</th><th>帧数</th><th class="num">mAP</th><th class="num">NDS</th><th>备注</th></tr></thead>
+    <tbody>
+      <tr><td>Baseline</td><td>R50</td><td>256×704</td><td>8+1</td><td class="num">0.389</td><td class="num">0.493</td><td class="dim">线上复现</td></tr>
+      <tr style="background:#1d2536"><td><strong>VCD-A</strong></td><td>R50</td><td>256×704</td><td>8+1</td><td class="num up">0.410</td><td class="num up">0.518</td><td class="up">+2.1 mAP / +2.5 NDS</td></tr>
+      <tr><td>Baseline*</td><td>R50</td><td>256×704</td><td>8+1</td><td class="num">0.418</td><td class="num">0.542</td><td class="dim">离线结果，BEV 特征 256×256</td></tr>
+      <tr style="background:#1d2536"><td><strong>VCD-A*</strong></td><td>R50</td><td>256×704</td><td>8+1</td><td class="num up">0.446</td><td class="num up">0.566</td><td class="up">+2.8 mAP / +2.4 NDS</td></tr>
+      <tr><td>VCD-E</td><td>ConvNeXt-B</td><td>768×1408</td><td>8+1</td><td class="num">0.677</td><td class="num">0.711</td><td class="dim">离线强教师</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="callout c-info">
+    <span class="tag">离线 vs 线上</span>
+    <p>这是 BEV 领域的重要区分：<strong>线上（online）</strong>指推理时用摄像头序列做时序推理；<strong>离线（offline）</strong>指推理时可用未来的帧。VCD 的离线代码<strong>至今仍是 TODO</strong>（README 明确标注 <code>[ ] VCD offline code</code>）。</p>
+  </div>
+  <p>跨实现对比（论文 v4 口径）：BEVFormer base（R101-DCN, 900×1600）在 nuScenes test 上 <strong>51.7 NDS / 41.6 mAP</strong>；VCD-E 教师（ConvNeXt-B）离线可达 <strong>67.7 mAP / 71.1 NDS</strong>；VCD 蒸馏出的 R50 学生离线 <strong>44.6 mAP / 56.6 NDS</strong>。</p>
+
+  <h3>8.2 FocalDistiller / FD3D（CVPR 2023）</h3>
+  <p><strong>核心思想</strong>：在知识蒸馏中，"把全局特征整体对齐"是错的——3D 几何推理天然产生<strong>噪声和混淆区域</strong>，整体蒸馏会把噪声也传给学生。FD3D 的做法是：</p>
+  <ol>
+    <li>用一组 <strong>query 去定位实例级区域</strong>，生成 <strong>masked feature</strong>，强化这些区域的特征表达；</li>
+    <li>再用这些 query <strong>搜索细粒度的代表性位置</strong>做<strong>精炼蒸馏</strong>。</li>
+  </ol>
+
+  <div class="tree">
+<span class="c">nuScenes_playground/FocalDistiller/</span>
+├── <span class="d">projects/mmdet3d_plugin/</span>
+│   ├── <span class="d">bevformer/</span>
+│   │   ├── <span class="f">dense_heads/bevformer_distiller.py</span>   <span class="c"># ★ BEVFormerDistiller(DETRHead)</span>
+│   │   └── <span class="d">distill_branch/</span>
+│   │       ├── <span class="f">transformerDistiller.py</span>        <span class="c">#   Transformer 层蒸馏</span>
+│   │       └── <span class="f">decoderDistiller.py</span>            <span class="c">#   Decoder 层蒸馏</span>
+│   └── <span class="d">kd/distillers/heatmap_detection_distiller.py</span> <span class="c"># ★ HeatmapDetectionDistiller</span>
+├── <span class="d">projects/configs/</span>
+│   ├── <span class="d">bevformer/</span>                    <span class="c"># bevformer_base.py / bevformer_small.py</span>
+│   └── <span class="d">distiller/</span>                    <span class="c"># base_distill_small_with_pv-cwd_bev-l2-heatmap.py ★</span>
+└── <span class="d">tools/</span>                             <span class="c"># distillation.py / dist_distill.sh / testStu.py</span>
+  </div>
+
+  <p><code>HeatmapDetectionDistiller</code> 的关键机制是<strong>用 forward hook 捕获教师/学生的中间特征</strong>：</p>
+  <pre><code>def regitster_hooks(student_module, teacher_module):
+    def hook_teacher_forward(module, input, output): ...
+    def hook_student_forward(module, input, output): ...</code></pre>
+  <p>这样可以在<strong>不改动主干网络结构</strong>的前提下，指定任意模块对做蒸馏——工程上比侵入式改造优雅得多。</p>
+
+  <h4>官方结果</h4>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>方法</th><th>Backbone</th><th>输入</th><th>BEV 分辨率</th><th class="num">NDS</th><th class="num">mAP</th><th class="num">GFLOPS</th><th class="num">FPS</th></tr></thead>
+    <tbody>
+      <tr><td>BEVFormer-Base (T)</td><td>R101-DCN</td><td>900×1600</td><td>200×200</td><td class="num">51.76</td><td class="num">41.66</td><td class="num">1323.41</td><td class="num">1.8</td></tr>
+      <tr><td>BEVFormer-Small (S)</td><td>R101-DCN</td><td>450×800</td><td>100×100</td><td class="num">46.83</td><td class="num">35.09</td><td class="num">416.46</td><td class="num">5.9</td></tr>
+      <tr style="background:#1d2536"><td><strong>+ HeatmapDistiller</strong></td><td>R101-DCN</td><td>450×800</td><td>100×100</td><td class="num up">48.98</td><td class="num up">37.27</td><td class="num">416.46</td><td class="num">5.9</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="callout c-ok">
+    <span class="tag">零推理开销</span>
+    <p>GFLOPS 与 FPS <strong>完全不变</strong>（蒸馏只作用于训练），NDS <strong>+2.15</strong>、mAP <strong>+2.18</strong>。这是纯粹"训练技巧"型收益，对量产部署极其友好。FPS 在 RTX 2080Ti 上测得。论文摘要还提到，把 FD3D 应用到 DETR3D 上有 <strong>+3.17 NDS</strong>。</p>
+  </div>
+
+  <h3>8.3 GAPretrain（arXiv 2023）</h3>
+  <p><strong>核心思想</strong>：现有几何感知预训练（如用深度任务预训练 backbone）忽略了<strong>视角变换</strong>这一环节，导致图像 backbone 学到的空间知识与 view transformation 模块"对不齐"（spatial knowledge misalignment）。GAPretrain 用 <strong>LiDAR 点云作为几何丰富的引导模态</strong>，在预训练阶段通过<strong>统一的 BEV 表示 + 结构提示</strong>来弥合模态鸿沟。</p>
+  <p><strong>结果</strong>：在 BEVFormer 上达到 nuScenes val <strong>46.2 mAP / 55.5 NDS</strong>，分别 <strong>+2.7 / +2.1</strong>。</p>
+  <div class="callout c-warn">
+    <span class="tag">代码未释出</span>
+    <p><code>GAPretrain.md</code> 明确写 "code coming soon"，至今未更新。这个模块目前只有论文摘要和 BibTeX，实际价值是"读论文时的索引"。</p>
+  </div>
+</section>
+
+<!-- ================= 9 ================= -->
+<section id="s9">
+  <h2><span class="num">09</span>工程化复现路线图</h2>
+
+  <h3>9.1 环境（<code>docs/installation.md</code>）</h3>
+  <pre><code>Miniconda py3.8
+  ├── torch 1.9.1 + cu111, torchvision 0.10.1, torchaudio 0.9.1
+  ├── gcc-5 (mmcv-full 需要) / gcc-6 备选
+  ├── mmcv-full 1.4.1  (cu111 / torch1.9.0 轮子)
+  ├── mmdet 2.19.0
+  ├── mmsegmentation 0.20.0
+  ├── mmdetection3d v0.18.1  ← 从 gitee 克隆（规避 GitHub 网络问题）
+  ├── timm 0.5.4
+  └── waymo-open-dataset-tf-2-6-0 1.4.1 + lingvo 0.10.0</code></pre>
+  <div class="callout c-info">
+    <span class="tag">细节</span>
+    <p><code>docs/installation.md</code> 里的 mmdetection3d 和 bevformer 都指向 <strong>gitee 镜像</strong>，说明作者团队自己也遇到过 GitHub 访问问题。</p>
+  </div>
+
+  <h3>9.2 数据</h3>
+  <pre><code><span class="c"># 完整 Waymo v1.3 → Kitti 格式</span>
+cd code
+python tools/create_data.py waymo --root-path ./data/waymo --out-dir ./data/waymo --extra-tag waymo
+
+<span class="c"># Waymo mini (1/5, Kitti 格式)：Google Drive / 百度网盘</span>
+cat training.tar.gz* | tar -xzv</code></pre>
+  <div class="tree">
+<span class="d">waymo_playground/</span>
+├── <span class="d">ckpts/</span><span class="f">r101_dcn_fcos3d_pretrain.pth</span>
+└── <span class="d">data/waymo_mini/</span>
+    ├── <span class="d">training/</span>
+    ├── <span class="f">waymo_calibs.pkl</span>
+    ├── <span class="f">waymo_mini_infos_train.pkl</span>
+    ├── <span class="f">waymo_mini_infos_val.pkl</span>
+    └── <span class="f">gt.bin</span> / <span class="f">gt.bin.pkl</span>
+  </div>
+
+  <h3>9.3 训练与评测</h3>
+  <pre><code>cd waymo_playground
+sh ./tools/dist_train_video.sh projects/configs/bevformer/waymo_mini_r101_baseline.py 8
+sh ./tools/dist_test_video.sh  projects/configs/bevformer/waymo_mini_r101_baseline.py \
+                                work_dirs/waymo_mini_r101_baseline/latest.pth 8
+
+<span class="c"># 带数据增强的配置</span>
+sh ./tools/dist_train_video.sh projects/configs/bevformer/data_aug/waymo_mini_r101_ms_flip.py 8</code></pre>
+
+  <h3>9.4 工具箱独立使用</h3>
+  <pre><code>pip install numpy opencv-python
+pip install bev-toolbox</code></pre>
+  <pre><code>import cv2, numpy as np
+from bev_toolbox.data_aug import RandomScaleImageMultiViewImage
+
+transform = RandomScaleImageMultiViewImage(scales=[0.9, 1.0, 1.1])
+imgs      = [cv2.imread(f'example/cam{i}_img.jpg') for i in range(5)]
+cam_intr  = [np.load(f'example/cam{i}_intrinsic.npy') for i in range(5)]
+cam_extr  = [np.load(f'example/cam{i}_extrinsic.npy') for i in range(5)]
+lidar2img = [np.load(f'example/cam{i}_lidar2img.npy') for i in range(5)]
+
+imgs_new, cam_intr_new, lidar2img_new = transform(imgs, cam_intr, cam_extr, lidar2img)</code></pre>
+  <div class="callout c-warn">
+    <span class="tag">开箱即用跑不通</span>
+    <p><code>example/</code> 目录里<strong>只有 5 张 jpg 和 example.md，没有 .npy 标定文件</strong>——README 引用它们的链接指向 Google Drive，且 issue #29 就是在催这个缺失。上面的示例代码需要自行下载标定才能跑。</p>
+  </div>
+
+  <h3>9.5 VCD 复现</h3>
+  <pre><code>pip install openmim &amp;&amp; mim install mmcv-full &amp;&amp; mim install mmdet &amp;&amp; mim install mmsegmentation
+git clone https://github.com/open-mmlab/mmdetection3d.git &amp;&amp; cd mmdetection3d &amp;&amp; pip install -e .
+
+<span class="c"># 训练教师</span>
+bash tools/dist_train.sh configs/vcd/vcd-convnext-base.py 8
+<span class="c"># 训练学生</span>
+bash tools/dist_train.sh configs/vcd/vcd-r50.py 8
+<span class="c"># 蒸馏</span>
+bash tools/dist_distill.sh configs/vcd/MotionDistiller_convnext-r50-4motion.py 8
+<span class="c"># 评测学生</span>
+bash tools/dist_test_stu.sh configs/vcd/MotionDistiller_convnext-r50-4motion.py ckpts/... 8</code></pre>
+  <p>环境建议直接 follow <strong>BEVDet2.0</strong> 的指南（README 作者自己的建议），因为 VCD 是 fork 自 BEVDet 系。</p>
+
+  <h3>9.6 FocalDistiller 复现</h3>
+  <pre><code><span class="c"># 把 FocalDistiller 目录移到 mmdetection3d 下</span>
+mv nuScenes_playground/FocalDistiller &lt;mmdetection3d&gt;/FocalDistiller
+
+<span class="c"># 训练教师 / 学生</span>
+tools/dist_train.sh ./projects/configs/bevformer/bevformer_base.py 8
+<span class="c"># 蒸馏</span>
+./tools/dist_distill.sh projects/configs/distiller/base_distill_small_with_pv-cwd_bev-l2-heatmap.py 8
+<span class="c"># 评测学生</span>
+PYTHONPATH=".":$PYTHONPATH python -m torch.distributed.launch --nproc_per_node=1 \
+  tools/testStu.py projects/configs/distiller/base_distill_small_with_pv-cwd_bev-l2-heatmap.py \
+  ckpts/..._ep24.pth --launcher pytorch --eval bbox</code></pre>
+</section>
+
+<!-- ================= 10 ================= -->
+<section id="s10">
+  <h2><span class="num">10</span>学习与研究路径建议</h2>
+
+  <div class="card" style="margin-bottom:18px">
+    <h4>路径 A · 纯入门（1–2 天）</h4>
+    <p><strong>目标</strong>：搞懂 BEV 是什么、为什么要鸟瞰图。</p>
+    <ol>
+      <li>读 <code>figs/general_overview.png</code>（总览图，先建立坐标系认知）</li>
+      <li>读综述论文的 Introduction + Fig. 2（视角变换三分类）</li>
+      <li>读 <code>docs/paper_list/bev_camera.md</code>，只精读 5 篇：<strong>LSS → BEVDet → BEVDepth → BEVFormer → PETR</strong></li>
+      <li>看 <code>example/example.md</code> + <code>figs/waymo_coordinate.png</code>，理解 Waymo 自车坐标系</li>
+      <li>跑通 <code>bev_toolbox</code> 的 <code>RandomScaleImageMultiViewImage</code> 示例</li>
+    </ol>
+    <p><strong>避坑</strong>：不要一上来就装 mmdet3d 0.18.1 的老环境（CUDA 编译会浪费一整天）。</p>
+  </div>
+
+  <div class="card" style="margin-bottom:18px">
+    <h4>路径 B · 复现 BEVFormer++（1–2 周）</h4>
+    <p><strong>目标</strong>：跑通 Waymo playground，理解每一项 trick。</p>
+    <ol>
+      <li>环境：按 §9.1 装（<strong>建议用 docker 或 conda 隔离，别污染主环境</strong>）</li>
+      <li>数据：下 Waymo mini，跑 <code>create_data.py</code></li>
+      <li>训练 baseline → 复现 34.9 LET-mAPL</li>
+      <li>逐个打开配置开关：<code>data_aug/waymo_mini_r101_ms_flip.py</code> → +0.7</li>
+      <li>读 <code>models/modules/bev_transformer.py</code> 的自车运动补偿三件套</li>
+      <li>读 <code>models/dense_heads/bevformer_detr_head_corner_pooling.py</code> 理解 Corner Pooling</li>
+      <li>读 <code>models/attns/</code> 6 个注意力实现，对照 BEVFormer 原论文</li>
+    </ol>
+    <p><strong>建议的实验</strong>：把 <code>bev_h_/bev_w_</code> 和 <code>point_cloud_range</code> 改一下，观察 <code>rotate(prev_bev, center=[70,150])</code> 硬编码中心导致的错位——这本身就是一个很好的复现报告素材。</p>
+  </div>
+
+  <div class="card" style="margin-bottom:18px">
+    <h4>路径 C · 研究者：蒸馏方向（2–4 周）</h4>
+    <p><strong>目标</strong>：搞懂"重模型蒸馏进轻模型"这条产线路径。</p>
+    <ol>
+      <li><strong>VCD</strong>（推荐先读）：<code>VCD/README.md</code> → <code>distillers/motion_distiller.py</code> 的 <code>forward_train</code> → <code>distill_BEV</code> 配置 → <code>losses/</code> 里 7 种蒸馏 loss
+        <ul><li>重点理解 <code>prepare_inputs</code> / <code>single_adj_objects</code> 如何处理时序运动物体</li>
+        <li>重点理解 <code>_make_deconv_layers</code> 的通道适配</li></ul></li>
+      <li><strong>FocalDistiller</strong>：<code>HeatmapDetectionDistiller</code> 的 <strong>hook 机制</strong> → <code>bevformer_distiller.py</code> 的 decoder 蒸馏 → <code>base_distill_small_with_pv-cwd_bev-l2-heatmap.py</code> 里 PV/BEV/L2-heatmap 三路 loss 的组合</li>
+      <li><strong>GAPretrain</strong>：只有摘要，理解"几何感知预训练 × 视角变换对齐"的问题设定</li>
+      <li>自己在 <strong>nuScenes</strong> 上做 teacher→student 蒸馏，<strong>注意先测 baseline 再蒸馏</strong>（很多"提升"其实是 baseline 没调好）</li>
+    </ol>
+  </div>
+
+  <div class="card" style="margin-bottom:24px">
+    <h4>路径 D · 工具箱 / 工程向（1 周）</h4>
+    <p><strong>目标</strong>：把 <code>bev_toolbox</code> 的思路迁移到自己项目。</p>
+    <ol>
+      <li>通读 <code>bev_toolbox/data_aug/functional.py</code>（179 行）——重点是 <strong>flip 的坐标系分支</strong></li>
+      <li>用 <code>bev_toolbox/wrapper_mmdet3d/data_aug_mmdet3d.py</code> 的注册方式接进自己的 mmdet3d 工程</li>
+      <li><strong>动手补齐 TODO</strong>：Grid Mask 已在 detector 里实现，抽回 toolbox；补 Test-time Augmentation；补 Weighted Box Fusion</li>
+      <li>补 <code>example/</code> 缺失的 .npy 标定文件（顺带解决 issue #29）</li>
+    </ol>
+  </div>
+
+  <h3>适合做的研究课题（基于本仓库的空白点）</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>课题</th><th>依据</th><th>难度</th></tr></thead>
+    <tbody>
+      <tr><td><strong>参数无关的 BEV 泛化</strong>：不重训直接适配新相机数 / 新间距</td><td>综述痛点④，仓库完全没碰</td><td>★★★</td></tr>
+      <tr><td><strong>BEV 占据预测（Occupancy）</strong>：综述提到但仓库无实现</td><td><code>docs/paper_list</code> 里 occupancy 只在总览图出现</td><td>★★★</td></tr>
+      <tr><td><strong>时序对齐的鲁棒性</strong>：硬编码旋转中心是明显破绽</td><td><code>bev_transformer.py:286</code></td><td>★★</td></tr>
+      <tr><td><strong>多模态教师的更优蒸馏位点</strong>：VCD 只开 BEV 一路，PV / Depth 是现成空位</td><td><code>MotionDistiller_convnext-r50-4motion.py</code></td><td>★★</td></tr>
+      <tr><td><strong>BEV 网格真值自动化生成</strong>：解决痛点②</td><td>综述</td><td>★★★★</td></tr>
+      <tr><td><strong>边缘部署</strong>：BEV Transformer 的稀疏化 / 蒸馏</td><td>与 RK3588S 边缘部署课题天然契合</td><td>★★★</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ================= 11 ================= -->
+<section id="s11">
+  <h2><span class="num">11</span>优点、局限与风险提示</h2>
+
+  <div class="callout c-ok">
+    <span class="tag">✅ 优点</span>
+    <ol style="margin-bottom:0">
+      <li><strong>稀缺的三合一结构</strong>：综述 + 可运行配方 + 新算法，在 BEV 领域几乎没有第二个这样的仓库。</li>
+      <li><strong>工具箱抽象质量高</strong>：567 行、纯 numpy+cv2、注释/类型/docstring 规范，<strong>它是真的想被复用</strong>，不是自娱自乐的 demo。</li>
+      <li><strong>坐标系处理严谨</strong>：Waymo / nuScenes 两套坐标系的翻转语义都正确处理了，这是多数 BEV 仓库偷懒的地方。</li>
+      <li><strong>消融数据齐全</strong>：13 项 trick 逐项指标，虽然部分未完成，但方向性结论可靠。</li>
+      <li><strong>踩坑记录诚实</strong>：README 的 "Ongoing Features" 勾选框明确列出未完成项，比很多仓库夸大其词要强。</li>
+      <li><strong>工业视角</strong>：<code>figs/industrial_pipeline.jpg</code> 和 <code>docs/paper_list/industry.md</code> 是很多纯学术仓库没有的。</li>
+      <li><strong>论文-代码闭环</strong>：VCD / FocalDistiller 都是自研方法的一手实现，不是复现别人的。</li>
+    </ol>
+  </div>
+
+  <div class="callout c-warn">
+    <span class="tag">⚠️ 局限</span>
+    <ol style="margin-bottom:0">
+      <li><strong>文档与代码脱节</strong>：<code>docs/installation.md</code> 引用的 <code>code/</code> 目录在仓库里<strong>根本不存在</strong>（实际是 <code>waymo_playground/</code>）；<code>data_preparation.md</code> 的路径也需自行调整。</li>
+      <li><strong>依赖栈严重过时</strong>：torch 1.9.1 + mmcv-full 1.4.1 + mmdet3d 0.18.1（2022 年）。在 2026 年的新 GPU 上编译 <code>bev_pool_v2</code>、<code>iou3d</code> 等 CUDA 算子是主要障碍（仓库里带了预编译的 <code>metrics_ops.so</code>，但依赖 CUDA 版本）。</li>
+      <li><strong>数据资产不在仓库里</strong>：Waymo mini、预训练权重、checkpoint 全在 Google Drive / 百度网盘。<strong>国内访问 Google Drive 需梯子</strong>，百度网盘限速——这是最大的复现障碍。</li>
+      <li><strong>消融数字未最终校验</strong>：README 自述 png→jpg 数据格式切换后需要重新验证。</li>
+      <li><strong>代码风格不统一</strong>：<code>nuscnes_eval.py</code> 拼写错误、单行 <code>if ...: shift_x = shift_x</code> 这类无操作语句（<code>bev_transformer.py:272</code>）、注释掉的死代码。</li>
+      <li><strong>硬编码超参</strong>：<code>rotate(prev_bev, center=[70, 150])</code> 与配置强耦合；<code>example/</code> 的示例缺 .npy。</li>
+      <li><strong>仅 1 个 Release（v0.1）</strong>，无 tag 化的子项目版本管理，引用不友好。</li>
+      <li><strong>VCD 离线代码、FocalDistiller 完整实现、GAPretrain 代码全部缺失</strong>——算法家族的"完整度"低于宣传。</li>
+    </ol>
+  </div>
+
+  <div class="callout c-danger">
+    <span class="tag">🔒 风险提示</span>
+    <ul style="margin-bottom:0">
+      <li><strong>Apache-2.0</strong>：可商用闭源分发，但需保留版权声明与 LICENSE；<strong>商标 / 专利另算</strong>。</li>
+      <li><strong>论文代码 ≠ 商用代码</strong>：BEVFormer 系代码大量引用 mmdet3d（Apache-2.0）和 BEVFormer（Apache-2.0），但 <code>bev_pool_v2</code> 算子、<code>metrics_ops.so</code> 等二进制的来源与授权需要单独确认。</li>
+      <li><strong>数据集许可严格</strong>：Waymo Open Dataset 有独立的非商业 / 商用条款，<strong>代码许可不等于数据许可</strong>。nuScenes 有 CC BY-NC-SA 类限制（商用需申请）。</li>
+      <li><strong>模型权重的许可</strong>：README 里链到的 checkpoint（含 BEVFormer 官方 <code>r101_dcn_fcos3d_pretrain.pth</code>）继承各自训练数据的许可，量产前务必单独过法务。</li>
+      <li><strong>本仓库未做安全加固</strong>：训练 / 推理脚本无输入校验，仅适合作为研究代码使用。</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ================= APPENDIX A ================= -->
+<section id="sa">
+  <h2><span class="num">A</span>附录 A · 关键源码索引</h2>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>我想看…</th><th>去这里</th></tr></thead>
+    <tbody>
+      <tr><td>多视图同步缩放 + 内外参同步</td><td class="kv"><code>bev_toolbox/data_aug/functional.py:36</code> <code>scale_image_multiple_view</code></td></tr>
+      <tr><td>多视图水平翻转（图像）</td><td class="kv"><code>bev_toolbox/data_aug/functional.py:77</code> <code>horizontal_flip_image_multiview</code></td></tr>
+      <tr><td><strong>3D 框翻转（两套坐标系）</strong></td><td class="kv"><code>bev_toolbox/data_aug/functional.py:101</code> <code>horizontal_flip_bbox</code></td></tr>
+      <tr><td><strong>相机参数翻转（两套坐标系）</strong></td><td class="kv"><code>bev_toolbox/data_aug/functional.py:118</code> <code>horizontal_flip_cam_params</code></td></tr>
+      <tr><td>CAN bus 翻转</td><td class="kv"><code>bev_toolbox/data_aug/functional.py:160</code> <code>horizontal_flip_canbus</code></td></tr>
+      <tr><td>可调用增强类</td><td class="kv"><code>bev_toolbox/data_aug/transforms.py:28, 84</code></td></tr>
+      <tr><td>mmdet3d 插件注册</td><td class="kv"><code>bev_toolbox/wrapper_mmdet3d/data_aug_mmdet3d.py</code></td></tr>
+      <tr><td><strong>自车运动补偿（旋转）</strong></td><td class="kv"><code>models/modules/bev_transformer.py:283</code></td></tr>
+      <tr><td><strong>自车运动补偿（平移）</strong></td><td class="kv"><code>models/modules/bev_transformer.py:266</code></td></tr>
+      <tr><td><strong>CAN bus 条件化</strong></td><td class="kv"><code>models/modules/bev_transformer.py:306</code></td></tr>
+      <tr><td>3D 参考点生成</td><td class="kv"><code>models/modules/bev_transformer.py:141</code> <code>get_reference_points</code></td></tr>
+      <tr><td>BEV 编码器 V2</td><td class="kv"><code>models/modules/encoderV2.py:29</code></td></tr>
+      <tr><td><strong>Corner Pooling 头</strong></td><td class="kv"><code>models/dense_heads/bevformer_detr_head_corner_pooling.py</code></td></tr>
+      <tr><td>5 种检测头</td><td class="kv"><code>models/dense_heads/</code>（detr_head / detr_head2 / centerpoint_head / anchor_head / corner_pooling）</td></tr>
+      <tr><td>6 种注意力实现</td><td class="kv"><code>models/attns/</code>（V2/V4/3D/BEV 交叉/TSA/SCA）</td></tr>
+      <tr><td>EMA / SyncBN Hook</td><td class="kv"><code>models/hooks/hooks.py:42,155,170</code> / <code>sync_norm.py:94</code></td></tr>
+      <tr><td>匈牙利匹配 3D</td><td class="kv"><code>core/bbox/assigners/hungarian_assigner_3d.py</code></td></tr>
+      <tr><td>匹配代价</td><td class="kv"><code>core/bbox/match_costs/match_cost.py</code></td></tr>
+      <tr><td>无 NMS 解码</td><td class="kv"><code>core/bbox/coders/nms_free_coder.py</code></td></tr>
+      <tr><td>Waymo 评测</td><td class="kv"><code>core/evaluation/eval_hooks.py</code> + <code>datasets/eval_waymo.py</code></td></tr>
+      <tr><td><strong>VCD 主蒸馏器</strong></td><td class="kv"><code>VCD/mmdet3d/distiller/distillers/motion_distiller.py:25</code></td></tr>
+      <tr><td>VCD 组合蒸馏器</td><td class="kv"><code>VCD/mmdet3d/distiller/distillers/combine_distiller.py:25</code></td></tr>
+      <tr><td>VCD 蒸馏损失库</td><td class="kv"><code>VCD/mmdet3d/distiller/losses/</code>（7 种）</td></tr>
+      <tr><td>VCD 检测器</td><td class="kv"><code>VCD/mmdet3d/models/detectors/vcd.py:51</code></td></tr>
+      <tr><td><strong>FD3D 蒸馏器（hook 机制）</strong></td><td class="kv"><code>FocalDistiller/projects/mmdet3d_plugin/kd/distillers/heatmap_detection_distiller.py:18</code></td></tr>
+      <tr><td>FD3D 头蒸馏</td><td class="kv"><code>FocalDistiller/.../bevformer/dense_heads/bevformer_distiller.py:30</code></td></tr>
+      <tr><td>FD3D 蒸馏分支</td><td class="kv"><code>FocalDistiller/.../bevformer/distill_branch/</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ================= APPENDIX B ================= -->
+<section id="sb">
+  <h2><span class="num">B</span>附录 B · 完整参考文献与外部链接</h2>
+
+  <h3>核心论文</h3>
+  <ul>
+    <li><strong>综述</strong>：Li, Hongyang; Sima, Chonghao; Dai, Jifeng; et al. <em>"Delving into the Devils of Bird's-Eye-View Perception: A Review, Evaluation and Recipe."</em> IEEE Transactions on Pattern Analysis and Machine Intelligence, 2023. DOI: <code>10.1109/TPAMI.2023.3333838</code> · <a href="https://arxiv.org/abs/2209.05324" target="_blank" rel="noopener">arXiv:2209.05324</a> · <a href="https://ieeexplore.ieee.org/document/10321736" target="_blank" rel="noopener">IEEE Xplore</a></li>
+    <li><strong>VCD</strong>：Huang, Linyan; Li, Zhiqi; Sima, Chonghao; Wang, Jingdong; Qiao, Yu; Li, Hongyang. <em>"Leveraging Vision-Centric Multi-Modal Expertise for 3D Object Detection."</em> NeurIPS 2023. · <a href="https://arxiv.org/abs/2310.15670" target="_blank" rel="noopener">arXiv:2310.15670</a></li>
+    <li><strong>FocalDistiller / FD3D</strong>：Zeng, Jia; Chen, Li; Deng, Hanming; Lu, Lewei; Yan, Junchi; Qiao, Yu; Li, Hongyang. <em>"Distilling Focal Knowledge from Imperfect Expert for 3D Object Detection."</em> CVPR 2023, pp. 992–1001. · <a href="https://openaccess.thecvf.com/content/CVPR2023/html/Zeng_Distilling_Focal_Knowledge_From_Imperfect_Expert_for_3D_Object_Detection_CVPR_2023_paper.html" target="_blank" rel="noopener">CVF 开放获取</a></li>
+    <li><strong>GAPretrain</strong>：Huang, Linyan; Wang, Huijie; Zeng, Jia; Zhang, Shengchuan; Cao, Liujuan; Ji, Rongrong; Yan, Junchi; Li, Hongyang. <em>"Geometric-aware Pretraining for Vision-centric 3D Object Detection."</em> arXiv:2304.03105, 2023. · <a href="https://arxiv.org/abs/2304.03105" target="_blank" rel="noopener">arXiv:2304.03105</a></li>
+  </ul>
+
+  <h3>仓库与榜单</h3>
+  <ul>
+    <li>本仓库：<a href="https://github.com/OpenDriveLab/Birds-eye-view-Perception" target="_blank" rel="noopener">github.com/OpenDriveLab/Birds-eye-view-Perception</a></li>
+    <li>工具箱 PyPI：<a href="https://pypi.org/project/bev-toolbox/" target="_blank" rel="noopener">pypi.org/project/bev-toolbox</a></li>
+    <li>OpenDriveLab 主页：<a href="https://opendrivelab.com/" target="_blank" rel="noopener">opendrivelab.com</a></li>
+    <li>BEVFormer（基线）：<a href="https://github.com/fundamentalvision/BEVFormer" target="_blank" rel="noopener">fundamentalvision/BEVFormer</a></li>
+    <li>BEVDet 系列：<a href="https://github.com/HuangJunJie2017/BEVDet" target="_blank" rel="noopener">HuangJunJie2017/BEVDet</a></li>
+    <li>PETR / PETRv2：<a href="https://github.com/megvii-research/PETR" target="_blank" rel="noopener">megvii-research/PETR</a></li>
+    <li>BEVDepth / BEVStereo：<a href="https://github.com/Megvii-BaseDetection/BEVDepth" target="_blank" rel="noopener">Megvii-BaseDetection/BEVDepth</a></li>
+    <li>BEVFusion (MIT)：<a href="https://github.com/mit-han-lab/bevfusion" target="_blank" rel="noopener">mit-han-lab/bevfusion</a></li>
+    <li>Waymo Open Dataset：<a href="https://waymo.com/open/" target="_blank" rel="noopener">waymo.com/open</a></li>
+    <li>nuScenes：<a href="https://www.nuscenes.org/" target="_blank" rel="noopener">nuscenes.org</a></li>
+  </ul>
+
+  <h3>本报告的方法说明</h3>
+  <div class="callout c-info">
+    <ul style="margin-bottom:0">
+      <li><strong>仓库数据</strong>：通过 <code>git clone --depth 1</code>（SSH）拉取 <code>master</code> 分支，快照 <code>dd329bd</code>；仓库指标通过 GitHub REST API（<code>gh api</code>）于 2026-10-30 实时抓取；代码体量通过 <code>find</code> / <code>wc -l</code> 实测统计。</li>
+      <li><strong>论文信息</strong>：arXiv:2209.05324 与 T-PAMI 版本信息通过 Web 检索交叉验证。</li>
+      <li><strong>所有"作者原话"</strong>：均来自仓库内文件（README / docs / 源码 docstring），已在正文中标注来源行号。</li>
+      <li><strong>未做的事</strong>：未在本机实际跑通训练 / 评测（需要 CUDA 环境 + Waymo 数据），因此<strong>所有性能数字均转述自仓库 README 与论文，未经本地复现验证</strong>。</li>
+    </ul>
+  </div>
+
+  <footer>
+    <p>报告完成于 2026-10-30 · 研究对象 <code>OpenDriveLab/Birds-eye-view-Perception @ dd329bd</code> · 配套 Markdown 版本见 <code>BEV-Perception-研究报告.md</code></p>
+    <p>本报告与配套插图仅用于技术学习与研究交流；插图版权归原项目作者所有（Apache-2.0），转载请注明出处。</p>
+  </footer>
+</section>
+
+</main>
+</div>
+
+<script>
+// sidebar scrollspy
+(function(){
+  var links = Array.prototype.slice.call(document.querySelectorAll('.side a[href^="#"]'));
+  var secs  = links.map(function(a){ return document.querySelector(a.getAttribute('href')); });
+  function onScroll(){
+    var y = window.scrollY + 120, cur = 0;
+    secs.forEach(function(s,i){ if(s && s.offsetTop <= y) cur = i; });
+    links.forEach(function(a,i){ a.classList.toggle('active', i===cur); });
+  }
+  window.addEventListener('scroll', onScroll, {passive:true});
+  onScroll();
+})();
+</script>
+</body>
+</html>
